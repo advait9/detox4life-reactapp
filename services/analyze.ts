@@ -14,20 +14,21 @@ export interface AnalyzeRoomResult {
 }
 
 export async function analyzeProduct(
-  photoUri: string
+  photoUri: string,
+  signal?: AbortSignal
 ): Promise<AnalyzeProductResult> {
-  // Save full-res image locally for library thumbnail before compression
-  const savedImageUri = await saveImageToDocuments(photoUri);
+  // Save full-res + process for upload in parallel
+  const [savedImageUri, processed] = await Promise.all([
+    saveImageToDocuments(photoUri),
+    processImageForUpload(photoUri),
+  ]);
 
-  // Process image (resize, compress) for upload
-  const processed = await processImageForUpload(photoUri);
-
-  // Build multipart form data using compressed image
   const formData = buildFormData(processed.uri);
 
   const response = await api.post<ProductAnalysisResponse>(
     API_ENDPOINTS.analyzeProduct,
-    formData
+    formData,
+    { signal }
   );
 
   return {
@@ -37,20 +38,21 @@ export async function analyzeProduct(
 }
 
 export async function analyzeRoom(
-  photoUri: string
+  photoUri: string,
+  signal?: AbortSignal
 ): Promise<AnalyzeRoomResult> {
-  // Save full-res image locally for library thumbnail before compression
-  const savedImageUri = await saveImageToDocuments(photoUri);
+  // Save full-res + process for upload in parallel
+  const [savedImageUri, processed] = await Promise.all([
+    saveImageToDocuments(photoUri),
+    processImageForUpload(photoUri),
+  ]);
 
-  // Process image (resize, compress) for upload
-  const processed = await processImageForUpload(photoUri);
-
-  // Build multipart form data using compressed image
   const formData = buildFormData(processed.uri);
 
   const response = await api.post<RoomAnalysisResponse>(
     API_ENDPOINTS.analyzeRoom,
-    formData
+    formData,
+    { signal }
   );
 
   return {

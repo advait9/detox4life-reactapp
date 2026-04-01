@@ -1,5 +1,9 @@
-export const API_BASE_URL = 'https://api.detox4.life/api';
-export const API_TOKEN = '3KfdKROcXjJC0qJnYbvjlBv6zmC9w5vl';
+import Constants from 'expo-constants';
+
+const extra = Constants.expoConfig?.extra ?? {};
+
+export const API_BASE_URL: string = extra.apiBaseUrl ?? '';
+export const API_TOKEN: string = extra.apiToken ?? '';
 
 export const API_ENDPOINTS = {
   analyzeProduct: '/analyze-product',

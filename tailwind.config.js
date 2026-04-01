@@ -6,10 +6,10 @@ module.exports = {
     extend: {
       colors: {
         brand: {
-          primary: '#2D6A4F',
-          dark: '#1B4332',
-          light: '#D8F3DC',
-          accent: '#52B788',
+          primary: '#16a34a',
+          dark: '#15803d',
+          light: '#dcfce7',
+          accent: '#22c55e',
         },
         risk: {
           safe: '#40916C',

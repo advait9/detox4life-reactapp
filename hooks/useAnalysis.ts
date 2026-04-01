@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { analyzeProduct, analyzeRoom } from '../services/analyze';
@@ -34,11 +34,19 @@ function toStoredRiskLevel(score: number): StoredRiskLevel {
 
 export function useProductAnalysis() {
   const { setPhase, setResult, setError } = useScanStore();
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async (photoUri: string) => {
+      abortRef.current = new AbortController();
       setPhase('uploading');
-      const result = await analyzeProduct(photoUri);
+      const result = await analyzeProduct(photoUri, abortRef.current.signal);
       setPhase('analyzing');
       return result;
     },
@@ -86,11 +94,19 @@ export function useProductAnalysis() {
 
 export function useRoomAnalysis() {
   const { setPhase, setResult, setError } = useScanStore();
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const mutation = useMutation({
     mutationFn: async (photoUri: string) => {
+      abortRef.current = new AbortController();
       setPhase('uploading');
-      const result = await analyzeRoom(photoUri);
+      const result = await analyzeRoom(photoUri, abortRef.current.signal);
       setPhase('analyzing');
       return result;
     },

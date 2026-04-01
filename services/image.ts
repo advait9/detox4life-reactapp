@@ -1,3 +1,4 @@
+import { Image } from 'react-native';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import { IMAGE_CONFIG } from '../constants/config';
@@ -10,16 +11,17 @@ export interface ProcessedImage {
   sizeBytes: number;
 }
 
+function getImageDimensions(uri: string): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) =>
+    Image.getSize(uri, (width, height) => resolve({ width, height }), reject)
+  );
+}
+
 export async function processImageForUpload(
   uri: string
 ): Promise<ProcessedImage> {
-  // Get original dimensions first
-  const original = await ImageManipulator.manipulateAsync(uri, [], {
-    format: ImageManipulator.SaveFormat.JPEG,
-  });
-
-  const originalWidth = original.width;
-  const originalHeight = original.height;
+  // Get dimensions without decoding the full image
+  const { width: originalWidth, height: originalHeight } = await getImageDimensions(uri);
 
   // Calculate resize dimensions maintaining aspect ratio
   const longestEdge = Math.max(originalWidth, originalHeight);
@@ -31,7 +33,6 @@ export async function processImageForUpload(
   const targetWidth = Math.round(originalWidth * scale);
   const targetHeight = Math.round(originalHeight * scale);
 
-  // Resize + compress
   const actions: ImageManipulator.Action[] =
     scale < 1 ? [{ resize: { width: targetWidth, height: targetHeight } }] : [];
 
@@ -45,11 +46,9 @@ export async function processImageForUpload(
     throw new Error('Failed to convert image to base64');
   }
 
-  // Estimate size from base64
   const sizeBytes = Math.round((result.base64.length * 3) / 4);
 
   if (sizeBytes > IMAGE_CONFIG.maxSizeBytes) {
-    // Re-compress at lower quality
     const recompressed = await ImageManipulator.manipulateAsync(uri, actions, {
       compress: 0.6,
       format: ImageManipulator.SaveFormat.JPEG,
@@ -84,11 +83,10 @@ export async function saveImageToDocuments(uri: string): Promise<string> {
   return destination;
 }
 
-export function buildFormData(imageUri: string, imageBase64?: string): FormData {
+export function buildFormData(imageUri: string): FormData {
   const formData = new FormData();
   const filename = `scan_${Date.now()}.jpg`;
 
-  // React Native FormData accepts this shape for file uploads
   formData.append('image', {
     uri: imageUri,
     name: filename,
