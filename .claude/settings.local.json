@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(npm install:*)",
+      "Bash(npm info:*)",
+      "Bash(python3 -c \"import json,sys; versions=json.load\\(sys.stdin\\); print\\([v for v in versions if v.startswith\\(''''40''''\\) or v.startswith\\(''''36''''\\) or v.startswith\\(''''37''''\\)][-5:]\\)\")",
+      "Bash(npx expo:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d[''''version'''']\\)\")",
+      "Bash(npm view:*)",
+      "Bash(curl -s --max-time 10 https://registry.npmjs.org/expo-template-bare-minimum/52.0.79)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(''''OK:'''', d[''''name''''], d[''''version'''']\\)\")",
+      "Bash(pod install:*)",
+      "Bash(xcrun xctrace:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(xcrun devicectl:*)"
+    ]
+  }
+}

@@ -1,0 +1,2 @@
+Place placeholder.png, icon.png, splash-icon.png, adaptive-icon.png, and favicon.png in this directory.
+These are referenced by app.json and components/library/ScanCard.tsx.
