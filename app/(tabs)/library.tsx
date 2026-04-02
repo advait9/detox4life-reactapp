@@ -14,9 +14,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchScans, deleteScan } from '../../db/queries';
 import { useLibraryStore } from '../../stores/useLibraryStore';
 import { ScanCard } from '../../components/library/ScanCard';
+import { PendingScanCard } from '../../components/library/PendingScanCard';
 import { FilterBar } from '../../components/library/FilterBar';
 import { SearchInput } from '../../components/library/SearchInput';
 import { Colors } from '../../constants/colors';
+import { usePendingScansStore } from '../../stores/usePendingScansStore';
 import type { StoredScan, StoredRiskLevel, ScanType } from '../../types';
 import type { FetchScansOptions } from '../../db/queries';
 
@@ -57,6 +59,7 @@ function buildQueryOptions(
 export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
+  const pendingEntries = usePendingScansStore((s) => s.pending);
   const {
     searchQuery,
     activeFilter,
@@ -113,16 +116,25 @@ export default function LibraryScreen() {
     [handleDelete]
   );
 
+  const totalCount = scans.length + pendingEntries.length;
+
   const ListHeader = (
     <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
       <Text style={styles.title}>Library</Text>
-      <Text style={styles.subtitle}>{scans.length} scan{scans.length !== 1 ? 's' : ''}</Text>
+      <Text style={styles.subtitle}>{totalCount} scan{totalCount !== 1 ? 's' : ''}</Text>
       <SearchInput
         value={searchQuery}
         onChangeText={setSearchQuery}
         placeholder="Search by name, category…"
       />
       <FilterBar activeFilter={activeFilter} onFilterChange={setActiveFilter} />
+      {pendingEntries.length > 0 && (
+        <View style={styles.pendingSection}>
+          {pendingEntries.map((entry) => (
+            <PendingScanCard key={entry.id} entry={entry} />
+          ))}
+        </View>
+      )}
     </View>
   );
 
@@ -195,6 +207,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: 'bold', color: Colors.text.primary, marginBottom: 2 },
   subtitle: { fontSize: 14, color: Colors.text.secondary, marginBottom: 10 },
   listContent: { paddingHorizontal: 16, paddingBottom: 24 },
+  pendingSection: { marginTop: 8 },
 
   emptyState: {
     alignItems: 'center',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,6 @@ import { FlashToggle } from '../../components/camera/FlashToggle';
 import { CameraOverlay } from '../../components/camera/CameraOverlay';
 import { useCamera } from '../../hooks/useCamera';
 import { useRoomAnalysis } from '../../hooks/useAnalysis';
-import { useScanStore } from '../../stores/useScanStore';
 import { useCameraStore } from '../../stores/useCameraStore';
 import { Colors } from '../../constants/colors';
 import type { RoomType } from '../../types';
@@ -37,21 +36,26 @@ export default function RoomScanScreen() {
   const insets = useSafeAreaInsets();
   const { hasPermission, requestPermission } = useCameraPermission();
   const { cameraRef, flashMode, facing, cycleFlash, toggleFacing, takePhoto } = useCamera();
-  const { analyze, isLoading } = useRoomAnalysis();
-  const { phase, error, reset } = useScanStore();
+  const { analyze } = useRoomAnalysis();
+  const [isCapturing, setIsCapturing] = useState(false);
   const { roomType, setRoomType } = useCameraStore();
 
   const device = useCameraDevice(facing);
 
   const handleCapture = async () => {
-    const uri = await takePhoto();
-    if (uri) {
-      analyze(uri);
+    if (isCapturing) return;
+    setIsCapturing(true);
+    try {
+      const uri = await takePhoto();
+      if (uri) {
+        await analyze(uri); // saves image + navigates back internally
+      }
+    } finally {
+      setIsCapturing(false);
     }
   };
 
   const handleClose = () => {
-    reset();
     router.back();
   };
 
@@ -86,7 +90,7 @@ export default function RoomScanScreen() {
         ref={cameraRef}
         style={StyleSheet.absoluteFill}
         device={device}
-        isActive={phase === 'idle' || phase === 'capturing'}
+        isActive
         photo
         photoQualityBalance="speed"
       />
@@ -135,26 +139,12 @@ export default function RoomScanScreen() {
 
       {/* Bottom controls */}
       <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 20 }]}>
-        {error ? (
-          <View style={styles.errorState}>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity onPress={() => reset()} style={styles.retryBtn}>
-              <Text style={styles.retryText}>Try Again</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <CaptureButton onPress={handleCapture} disabled={isLoading} />
-        )}
+        <CaptureButton onPress={handleCapture} disabled={isCapturing} />
       </View>
 
-      {/* Full-screen analysis overlay */}
-      {isLoading && (
-        <View style={styles.analysisOverlay}>
+      {isCapturing && (
+        <View style={styles.captureOverlay}>
           <ActivityIndicator color="#fff" size="large" />
-          <Text style={styles.analysisTitle}>
-            {phase === 'uploading' ? 'Uploading…' : 'Analysing room…'}
-          </Text>
-          <Text style={styles.analysisSubtitle}>This may take a few seconds</Text>
         </View>
       )}
     </View>
@@ -209,34 +199,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 20,
   },
-  analyzingState: { alignItems: 'center', gap: 12 },
-  analyzingText: { color: '#fff', fontSize: 16, fontWeight: '500' },
-  errorState: { alignItems: 'center', gap: 12 },
-  errorText: {
-    color: '#fff',
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-    backgroundColor: 'rgba(214,40,40,0.75)',
-    padding: 12,
-    borderRadius: 10,
-  },
-  retryBtn: {
-    backgroundColor: Colors.brand.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 24,
-  },
-  retryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
-  analysisOverlay: {
+  captureOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.82)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 16,
   },
-  analysisTitle: { color: '#fff', fontSize: 20, fontWeight: '700' },
-  analysisSubtitle: { color: 'rgba(255,255,255,0.6)', fontSize: 14 },
   permissionScreen: { flex: 1, backgroundColor: Colors.bg.primary, alignItems: 'center', padding: 32, gap: 16 },
   permissionTitle: { fontSize: 22, fontWeight: '700', color: Colors.text.primary },
   permissionDesc: { fontSize: 15, color: Colors.text.secondary, textAlign: 'center', lineHeight: 22 },

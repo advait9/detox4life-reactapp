@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -34,10 +34,14 @@ export default function RootLayout() {
     return (
       <View style={splash.container}>
         <StatusBar style="light" />
-        <Text style={splash.leaf}>🌿</Text>
+        <Image
+          source={require('../assets/icon.png')}
+          style={splash.logo}
+          resizeMode="contain"
+        />
         <Text style={splash.title}>Detox 4 Life</Text>
         <Text style={splash.tagline}>Know what's in your world</Text>
-        <Text style={splash.credit}>App developed by Advait Thakur</Text>
+        <Text style={splash.credit}>Made with ♥ & care for a healthier world by Advait Thakur</Text>
       </View>
     );
   }
@@ -65,8 +69,9 @@ const splash = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
-  leaf: {
-    fontSize: 72,
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: 8,
   },
   title: {

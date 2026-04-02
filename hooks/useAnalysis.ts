@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { analyzeProduct, analyzeRoom } from '../services/analyze';
+import api from '../services/api';
+import { processImageForUpload, saveImageToDocuments, buildFormData } from '../services/image';
+import { API_ENDPOINTS } from '../constants/config';
 import { insertScan } from '../db/queries';
-import { useScanStore } from '../stores/useScanStore';
+import { usePendingScansStore } from '../stores/usePendingScansStore';
+import { useCameraStore } from '../stores/useCameraStore';
+import type { PendingEntry } from '../stores/usePendingScansStore';
 import type { ProductAnalysisResponse, RoomAnalysisResponse, StoredRiskLevel } from '../types';
-import { getRiskLevelFromApiRisk } from '../constants/colors';
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -33,121 +36,171 @@ function toStoredRiskLevel(score: number): StoredRiskLevel {
 }
 
 export function useProductAnalysis() {
-  const { setPhase, setResult, setError } = useScanStore();
-  const abortRef = useRef<AbortController | null>(null);
+  const queryClient = useQueryClient();
+  const { addPending, completePending, failPending } = usePendingScansStore();
 
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, []);
-
-  const mutation = useMutation({
-    mutationFn: async (photoUri: string) => {
-      abortRef.current = new AbortController();
-      setPhase('uploading');
-      const result = await analyzeProduct(photoUri, abortRef.current.signal);
-      setPhase('analyzing');
-      return result;
-    },
-    onSuccess: async ({ response, savedImageUri }) => {
+  const analyze = useCallback(
+    async (photoUri: string) => {
       const id = generateId();
-      const score = computeProductScore(response);
-      const riskLevel = toStoredRiskLevel(score);
       const now = new Date().toISOString();
 
-      await insertScan({
-        id,
-        type: 'product',
-        name: response.ProductName,
-        image_uri: savedImageUri,
-        overall_score: score,
-        risk_level: riskLevel,
-        response_json: JSON.stringify(response),
-        analyzed_at: now,
-        created_at: now,
-      });
+      // Save image to permanent storage first so the pending card has a valid URI
+      const savedImageUri = await saveImageToDocuments(photoUri);
 
-      setResult({
-        id,
-        type: 'product',
-        name: response.ProductName,
-        imageUri: savedImageUri,
-        overallScore: score,
-        response,
-        analyzedAt: now,
-      });
+      // Register in pending store and navigate away immediately
+      addPending({ id, type: 'product', imageUri: savedImageUri, createdAt: now, status: 'analyzing' });
+      router.back();
 
-      router.replace(`/result/${id}`);
+      // API call runs in background — not awaited at call site
+      processImageForUpload(photoUri)
+        .then(async (processed) => {
+          const formData = buildFormData(processed.uri);
+          const { data: response } = await api.post<ProductAnalysisResponse>(
+            API_ENDPOINTS.analyzeProduct,
+            formData
+          );
+
+          const score = computeProductScore(response);
+          const riskLevel = toStoredRiskLevel(score);
+
+          await insertScan({
+            id,
+            type: 'product',
+            name: response.ProductName,
+            image_uri: savedImageUri,
+            overall_score: score,
+            risk_level: riskLevel,
+            response_json: JSON.stringify(response),
+            analyzed_at: now,
+            created_at: now,
+          });
+
+          queryClient.invalidateQueries({ queryKey: ['scans'] });
+          queryClient.invalidateQueries({ queryKey: ['libraryStats'] });
+          queryClient.invalidateQueries({ queryKey: ['recentScans'] });
+          completePending(id);
+        })
+        .catch((err: Error) => {
+          failPending(id, err.message);
+        });
     },
-    onError: (error: Error) => {
-      setError(error.message);
-    },
-  });
+    [queryClient, addPending, completePending, failPending]
+  );
 
-  return {
-    analyze: mutation.mutate,
-    isLoading: mutation.isPending,
-    error: mutation.error,
-  };
+  return { analyze };
 }
 
 export function useRoomAnalysis() {
-  const { setPhase, setResult, setError } = useScanStore();
-  const abortRef = useRef<AbortController | null>(null);
+  const queryClient = useQueryClient();
+  const { addPending, completePending, failPending } = usePendingScansStore();
+  const { roomType } = useCameraStore();
 
-  useEffect(() => {
-    return () => {
-      abortRef.current?.abort();
-    };
-  }, []);
-
-  const mutation = useMutation({
-    mutationFn: async (photoUri: string) => {
-      abortRef.current = new AbortController();
-      setPhase('uploading');
-      const result = await analyzeRoom(photoUri, abortRef.current.signal);
-      setPhase('analyzing');
-      return result;
-    },
-    onSuccess: async ({ response, savedImageUri }) => {
+  const analyze = useCallback(
+    async (photoUri: string) => {
       const id = generateId();
-      const score = computeRoomScore(response);
-      const riskLevel = toStoredRiskLevel(score);
       const now = new Date().toISOString();
 
-      await insertScan({
-        id,
-        type: 'room',
-        name: response.roomType,
-        image_uri: savedImageUri,
-        overall_score: score,
-        risk_level: riskLevel,
-        response_json: JSON.stringify(response),
-        analyzed_at: now,
-        created_at: now,
-      });
+      const savedImageUri = await saveImageToDocuments(photoUri);
 
-      setResult({
-        id,
-        type: 'room',
-        name: response.roomType,
-        imageUri: savedImageUri,
-        overallScore: score,
-        response,
-        analyzedAt: now,
-      });
+      addPending({ id, type: 'room', imageUri: savedImageUri, createdAt: now, status: 'analyzing' });
+      router.back();
 
-      router.replace(`/result/${id}`);
+      processImageForUpload(photoUri)
+        .then(async (processed) => {
+          const formData = buildFormData(processed.uri);
+          const { data: response } = await api.post<RoomAnalysisResponse>(
+            API_ENDPOINTS.analyzeRoom,
+            formData
+          );
+
+          const score = computeRoomScore(response);
+          const riskLevel = toStoredRiskLevel(score);
+
+          await insertScan({
+            id,
+            type: 'room',
+            name: response.roomType,
+            image_uri: savedImageUri,
+            overall_score: score,
+            risk_level: riskLevel,
+            response_json: JSON.stringify(response),
+            analyzed_at: now,
+            created_at: now,
+          });
+
+          queryClient.invalidateQueries({ queryKey: ['scans'] });
+          queryClient.invalidateQueries({ queryKey: ['libraryStats'] });
+          queryClient.invalidateQueries({ queryKey: ['recentScans'] });
+          completePending(id);
+        })
+        .catch((err: Error) => {
+          failPending(id, err.message);
+        });
     },
-    onError: (error: Error) => {
-      setError(error.message);
-    },
-  });
+    [queryClient, addPending, completePending, failPending, roomType]
+  );
 
-  return {
-    analyze: mutation.mutate,
-    isLoading: mutation.isPending,
-    error: mutation.error,
-  };
+  return { analyze };
+}
+
+export function useRetryAnalysis() {
+  const queryClient = useQueryClient();
+  const { retryPending, completePending, failPending } = usePendingScansStore();
+
+  const retry = useCallback(
+    (entry: PendingEntry) => {
+      retryPending(entry.id);
+
+      processImageForUpload(entry.imageUri)
+        .then(async (processed) => {
+          const formData = buildFormData(processed.uri);
+          const endpoint =
+            entry.type === 'product' ? API_ENDPOINTS.analyzeProduct : API_ENDPOINTS.analyzeRoom;
+
+          const { data: response } = await api.post<ProductAnalysisResponse | RoomAnalysisResponse>(
+            endpoint,
+            formData
+          );
+
+          let score: number;
+          let name: string;
+
+          if (entry.type === 'product') {
+            const r = response as ProductAnalysisResponse;
+            score = computeProductScore(r);
+            name = r.ProductName;
+          } else {
+            const r = response as RoomAnalysisResponse;
+            score = computeRoomScore(r);
+            name = r.roomType;
+          }
+
+          const riskLevel = toStoredRiskLevel(score);
+          const now = new Date().toISOString();
+
+          await insertScan({
+            id: entry.id,
+            type: entry.type,
+            name,
+            image_uri: entry.imageUri,
+            overall_score: score,
+            risk_level: riskLevel,
+            response_json: JSON.stringify(response),
+            analyzed_at: now,
+            created_at: entry.createdAt,
+          });
+
+          queryClient.invalidateQueries({ queryKey: ['scans'] });
+          queryClient.invalidateQueries({ queryKey: ['libraryStats'] });
+          queryClient.invalidateQueries({ queryKey: ['recentScans'] });
+          completePending(entry.id);
+        })
+        .catch((err: Error) => {
+          failPending(entry.id, err.message);
+        });
+    },
+    [queryClient, retryPending, completePending, failPending]
+  );
+
+  return { retry };
 }

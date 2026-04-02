@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  Image,
 } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -197,11 +198,7 @@ function RecentScanCard({
 }) {
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.recentCard}>
-      <View style={styles.recentThumb}>
-        <Text style={styles.recentThumbIcon}>
-          {scan.type === 'product' ? '📦' : '🏠'}
-        </Text>
-      </View>
+      <Image source={{ uri: scan.image_uri }} style={styles.recentThumb} />
       <Text style={styles.recentName} numberOfLines={2}>{scan.name}</Text>
       <ToxicityBadge level={scan.risk_level} size="sm" />
       <Text style={styles.recentScore}>{scan.overall_score.toFixed(1)}/10</Text>
@@ -250,12 +247,9 @@ const styles = StyleSheet.create({
   recentThumb: {
     width: '100%',
     height: 70,
-    backgroundColor: Colors.brand.light,
+    backgroundColor: Colors.bg.secondary,
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  recentThumbIcon: { fontSize: 32 },
   recentName: { fontSize: 13, fontWeight: '600', color: Colors.text.primary },
   recentScore: { fontSize: 13, fontWeight: '700', color: Colors.brand.primary },
   trendCard: { marginBottom: 16 },

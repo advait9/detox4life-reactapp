@@ -89,5 +89,9 @@
     <string>Automatic</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Detox 4 Life may need your location to provide relevant product and environmental safety information.</string>
   </dict>
 </plist>
